@@ -47,7 +47,7 @@ public class MovieSearchUI extends JFrame {
         
         // Add data limit controls
         topControlPanel.add(new JLabel("Jumlah Data:"));
-        SpinnerNumberModel spinnerModel = new SpinnerNumberModel(10, 1, 1000, 1);
+        SpinnerNumberModel spinnerModel = new SpinnerNumberModel(90, 1, 1000, 1);
         dataLimitSpinner = new JSpinner(spinnerModel);
         dataLimitSpinner.setPreferredSize(new Dimension(80, 25));
         topControlPanel.add(dataLimitSpinner);
