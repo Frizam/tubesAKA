@@ -8,6 +8,10 @@ import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.util.List;
+import org.jfree.chart.ChartFactory;
+import org.jfree.chart.ChartPanel;
+import org.jfree.chart.JFreeChart;
+import org.jfree.data.category.DefaultCategoryDataset;
 
 public class MovieSearchUI extends JFrame {
     private JTable table;
@@ -18,11 +22,12 @@ public class MovieSearchUI extends JFrame {
     private JSpinner dataLimitSpinner;
     private JTextArea resultArea;
     private JButton applyLimitButton;
-    
+    private DefaultCategoryDataset dataset; // Dataset untuk grafik
+
     public MovieSearchUI() {
         try {
-            // Inisialisasi dengan semua data
             films = CSVReader.readCSVFile("mdc - Copy.csv");
+            dataset = new DefaultCategoryDataset(); // Inisialisasi dataset
             setupUI();
         } catch (Exception e) {
             e.printStackTrace();
@@ -32,75 +37,72 @@ public class MovieSearchUI extends JFrame {
                 JOptionPane.ERROR_MESSAGE);
         }
     }
-    
+
     private void setupUI() {
         setTitle("Movie Search Application");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
         
-        // Create table model
-        String[] columns = {"Title", "Year", "Genre", "Runtime", "Rating", "IMDb", "Studio", "Director"};
-        tableModel = new DefaultTableModel(columns, 0);
-        
-        // Create control panel at the top
+        // Panel atas untuk kontrol data limit
         JPanel topControlPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        
-        // Add data limit controls
         topControlPanel.add(new JLabel("Jumlah Data:"));
         SpinnerNumberModel spinnerModel = new SpinnerNumberModel(90, 1, 90, 1);
         dataLimitSpinner = new JSpinner(spinnerModel);
         dataLimitSpinner.setPreferredSize(new Dimension(80, 25));
         topControlPanel.add(dataLimitSpinner);
-        
         applyLimitButton = new JButton("Terapkan Limit");
         topControlPanel.add(applyLimitButton);
-        
         add(topControlPanel, BorderLayout.NORTH);
         
-        // Update table initially with all data
-        updateTableData((Integer) dataLimitSpinner.getValue());
-        
-        // Create and configure table
+        // Tabel untuk menampilkan data film
+        String[] columns = {"Title", "Year", "Genre", "Runtime", "Rating", "IMDb", "Studio", "Director"};
+        tableModel = new DefaultTableModel(columns, 0);
         table = new JTable(tableModel);
         table.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
         JScrollPane scrollPane = new JScrollPane(table);
         add(scrollPane, BorderLayout.CENTER);
         
-        // Create bottom control panel
+        // Panel bawah untuk kontrol tambahan
         JPanel bottomControlPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        
-        // Studio selection
         bottomControlPanel.add(new JLabel("Studio:"));
         studioComboBox = new JComboBox<>(new String[]{"MARVEL", "DC"});
         bottomControlPanel.add(studioComboBox);
-        
-        // Search method selection
         bottomControlPanel.add(new JLabel("Metode Pencarian:"));
         searchMethodComboBox = new JComboBox<>(new String[]{"Iteratif", "Rekursif"});
         bottomControlPanel.add(searchMethodComboBox);
-        
-        // Search button
         JButton searchButton = new JButton("Cari Film Terbaik");
         bottomControlPanel.add(searchButton);
+
+        // Tombol untuk menampilkan grafik
+        JButton chartButton = new JButton("Lihat Grafik");
+        bottomControlPanel.add(chartButton);
+
+        // Tombol untuk menambahkan data ke grafik
+        JButton addToChartButton = new JButton("Tambah Data ke Grafik");
+        bottomControlPanel.add(addToChartButton);
         
-        // Result area
+        // Area hasil pencarian
         resultArea = new JTextArea(4, 40);
         resultArea.setEditable(false);
         resultArea.setLineWrap(true);
         resultArea.setWrapStyleWord(true);
         bottomControlPanel.add(new JScrollPane(resultArea));
-        
         add(bottomControlPanel, BorderLayout.SOUTH);
         
-        // Add action listeners
+        // Action listeners
         searchButton.addActionListener(e -> searchBestRating());
         applyLimitButton.addActionListener(e -> updateTableData((Integer) dataLimitSpinner.getValue()));
+        chartButton.addActionListener(e -> showPerformanceChart(-1)); // -1 untuk menampilkan grafik penuh
+        addToChartButton.addActionListener(e -> {
+            int limit = (Integer) dataLimitSpinner.getValue();
+            showPerformanceChart(limit);
+        });
         
-        // Set window size and location
+        // Ukuran window
         setSize(1000, 600);
         setLocationRelativeTo(null);
     }
-    
+
     private void updateTableData(int limit) {
         // Clear existing data
         tableModel.setRowCount(0);
@@ -127,7 +129,7 @@ public class MovieSearchUI extends JFrame {
         // Update status
         setTitle(String.format("Movie Search Application - Menampilkan %d dari %d film", count, films.size()));
     }
-    
+
     private void searchBestRating() {
         String selectedStudio = (String) studioComboBox.getSelectedItem();
         String searchMethod = (String) searchMethodComboBox.getSelectedItem();
@@ -170,7 +172,51 @@ public class MovieSearchUI extends JFrame {
         result.append(String.format("\nRunning Time: %.3f ms", executionTime));
         resultArea.setText(result.toString());
     }
-    
+
+    private void showPerformanceChart(int limit) {
+        if (limit > 0) {
+            // Konversi list ke array dengan batasan data
+            Film[] filmsArray = films.stream()
+                                     .limit(limit)
+                                     .toArray(Film[]::new);
+
+            // Ukur waktu eksekusi metode iteratif
+            long startTime = System.nanoTime();
+            SequentialSearch.findBestRatingIterative(filmsArray, "MARVEL");
+            long endTime = System.nanoTime();
+            double executionTimeIterative = (endTime - startTime) / 1_000_000.0;
+
+            // Ukur waktu eksekusi metode rekursif
+            startTime = System.nanoTime();
+            SequentialSearch.findBestRatingRecursive(filmsArray, "MARVEL", filmsArray.length, null);
+            endTime = System.nanoTime();
+            double executionTimeRecursive = (endTime - startTime) / 1_000_000.0;
+
+            // Tambahkan data ke dataset
+            dataset.addValue(executionTimeIterative, "Iteratif", Integer.toString(limit));
+            dataset.addValue(executionTimeRecursive, "Rekursif", Integer.toString(limit));
+        }
+
+        // Buat grafik
+        JFreeChart chart = ChartFactory.createLineChart(
+            "Performance vs Input Size",
+            "Input Size (Jumlah Film)",
+            "Execution Time (ms)",
+            dataset
+        );
+
+        ChartPanel chartPanel = new ChartPanel(chart);
+        chartPanel.setPreferredSize(new Dimension(800, 400));
+
+        // Tampilkan dalam dialog
+        JFrame chartFrame = new JFrame("Performance Chart");
+        chartFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        chartFrame.getContentPane().add(chartPanel);
+        chartFrame.pack();
+        chartFrame.setLocationRelativeTo(null);
+        chartFrame.setVisible(true);
+    }
+
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
             new MovieSearchUI().setVisible(true);
