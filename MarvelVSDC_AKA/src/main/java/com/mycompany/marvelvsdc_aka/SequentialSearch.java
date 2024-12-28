@@ -26,14 +26,10 @@ public class SequentialSearch {
         // Base case: jika n = 0
         if (n == 0) {
             return currentBest;
-        }
-
-        // Periksa elemen ke-(n-1)
-        if (films[n - 1].getStudio().equalsIgnoreCase(category) &&
-            (currentBest == null || films[n - 1].getImdbRating() > currentBest.getImdbRating())) {
+        } else if (films[n - 1].getStudio().equalsIgnoreCase(category) &&
+            (currentBest == null || films[n - 1].getImdbRating() > currentBest.getImdbRating())) { // Periksa elemen ke-(n-1)
             currentBest = films[n - 1];
         }
-
         // Recursive case: lanjut ke elemen sebelumnya
         return findBestRatingRecursive(films, category, n - 1, currentBest);
     }
